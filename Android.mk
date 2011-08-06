@@ -19,7 +19,7 @@ LOCAL_SHARED_LIBRARIES := \
         libui \
         libsurfaceflinger_client
 
-LOCAL_SRC_FILES:= native/ss.cpp
+LOCAL_SRC_FILES:= native/screenshot.cpp
 
 LOCAL_MODULE:= screenshot
 LOCAL_MODULE_TAGS := optional
