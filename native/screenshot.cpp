@@ -147,15 +147,6 @@ int main(int argc, char **argv)
     else if (depth == 32)
     {
         memcpy(rgbaPixels, base, totalMem8888);
-
-        byte *pos = (byte *)rgbaPixels;
-        while (pos < (byte *)endOfImage)
-        {
-            byte tmp = pos[0];
-            pos[0] = pos[2];
-            pos[2] = tmp;
-            pos += 4;
-        }
     }
     else
     {
@@ -217,3 +208,4 @@ done:
     }
     return ret;
 }
+
