@@ -142,6 +142,7 @@ int main(int argc, char **argv)
     char ssPath[128];
     int screenshotHandle;
 
+    void* mapBase = NULL;
     void* base = NULL;
     uint32_t w = 0;
     uint32_t h = 0;
@@ -152,12 +153,20 @@ int main(int argc, char **argv)
     sprintf(ssPath,"%s/tmpshot.bmp",getenv("EXTERNAL_STORAGE"));
 
     struct fb_var_screeninfo vinfo;
+    struct fb_fix_screeninfo finfo;
 
-    LOGD("using fb");
+    /* Open framebuffer */
     framebufferHandle = open("/dev/graphics/fb0", O_RDONLY);
     if(framebufferHandle < 0)
         return 0;
 
+    /* Get fixed information */
+    if(ioctl(framebufferHandle, FBIOGET_FSCREENINFO, &finfo) < 0) {
+        close(framebufferHandle);
+        return 0;
+    }
+
+    /* Get variable information */
     if(ioctl(framebufferHandle, FBIOGET_VSCREENINFO, &vinfo) < 0) {
         close(framebufferHandle);
         return 0;
@@ -167,10 +176,11 @@ int main(int argc, char **argv)
     h = vinfo.yres;
     totalPixels = w * h;
     depth = vinfo.bits_per_pixel;
-    mapSize = totalPixels * (depth/8);
+    mapSize = finfo.smem_len;
     fcntl(framebufferHandle, F_SETFD, FD_CLOEXEC);
     LOGD("Got %dx%dx%d framebuffer",w,h,depth);
-    base = tryfbmap(framebufferHandle, mapSize);
+    mapBase = tryfbmap(framebufferHandle, mapSize);
+    base = (unsigned char*)mapBase + (vinfo.xoffset + vinfo.yoffset*vinfo.xres_virtual)*(depth/8);
     pixelOrder = get_pixel_order(&vinfo);
 
     int totalMem8888 = totalPixels * 4;
@@ -259,7 +269,7 @@ done:
     if (rgbaPixels != NULL)
         free(rgbaPixels);
     if (framebufferHandle >= 0 && mapSize) {
-        munmap(base, mapSize);
+        munmap(mapBase, mapSize);
         close(framebufferHandle);
     }
     return ret;
