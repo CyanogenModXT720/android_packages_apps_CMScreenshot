@@ -1,6 +1,7 @@
 /*
 **
 ** Copyright 2010, Koushik Dutta
+** Copyright 2011, Paul Kocialkowski <contact@paulk.fr>
 ** Copyright 2011, The CyanogenMod Project
 **
 ** Licensed under the Apache License, Version 2.0 (the "License"); 
@@ -68,6 +69,54 @@ struct bmpfile_dibheader {
 
 typedef unsigned char byte;
 
+#define PIXEL_ORDER_RGBA	0x01
+#define PIXEL_ORDER_BGRA	0x02
+#define PIXEL_ORDER_UNKNOWN	0x03
+
+int get_pixel_order(struct fb_var_screeninfo *vinfo)
+{
+    /* RGBA */
+	if(vinfo->red.offset < vinfo->green.offset)
+    {
+        LOGD("RGBA");
+        return PIXEL_ORDER_RGBA;
+    }
+    /* BGRA */
+    else if(vinfo->blue.offset < vinfo->green.offset)
+    {
+        LOGD("BGRA");
+        return PIXEL_ORDER_BGRA;
+    }
+    /* UNKNOWN */
+    else
+    {
+        return PIXEL_ORDER_UNKNOWN;
+    }
+}
+
+void sort_pixels(int pixel_order, void *buf, void *buf_end)
+{
+    byte *pos; 
+    byte tmp;
+    switch(pixel_order)
+    {
+        case PIXEL_ORDER_BGRA:
+        break;
+
+        case PIXEL_ORDER_RGBA:
+        default:
+            pos = (byte *)buf;
+            while (pos < (byte *)buf_end)
+            {
+                tmp = pos[0];
+                pos[0] = pos[2];
+                pos[2] = tmp;
+                pos += 4;
+            }
+        break;
+    }
+}
+
 void* tryfbmap(int framebufferHandle, int size)
 {
     void *fbPixels = mmap(0, size, PROT_READ, MAP_SHARED, framebufferHandle, 0);
@@ -78,6 +127,8 @@ void* tryfbmap(int framebufferHandle, int size)
     }
     return fbPixels;
 }
+
+
 
 static const int format_map[] = {0,32,32,24,16,32,16,16};
 
@@ -96,6 +147,7 @@ int main(int argc, char **argv)
     uint32_t h = 0;
     uint32_t depth = 0;
     int totalPixels = 0;
+    int pixelOrder = PIXEL_ORDER_RGBA;
 
     sprintf(ssPath,"%s/tmpshot.bmp",getenv("EXTERNAL_STORAGE"));
 
@@ -105,10 +157,12 @@ int main(int argc, char **argv)
     framebufferHandle = open("/dev/graphics/fb0", O_RDONLY);
     if(framebufferHandle < 0)
         return 0;
+
     if(ioctl(framebufferHandle, FBIOGET_VSCREENINFO, &vinfo) < 0) {
         close(framebufferHandle);
         return 0;
     }
+
     w = vinfo.xres;
     h = vinfo.yres;
     totalPixels = w * h;
@@ -117,6 +171,7 @@ int main(int argc, char **argv)
     fcntl(framebufferHandle, F_SETFD, FD_CLOEXEC);
     LOGD("Got %dx%dx%d framebuffer",w,h,depth);
     base = tryfbmap(framebufferHandle, mapSize);
+    pixelOrder = get_pixel_order(&vinfo);
 
     int totalMem8888 = totalPixels * 4;
     int *rgbaPixels = (int*)malloc(totalMem8888);
@@ -147,6 +202,7 @@ int main(int argc, char **argv)
     else if (depth == 32)
     {
         memcpy(rgbaPixels, base, totalMem8888);
+	    sort_pixels(pixelOrder, rgbaPixels, endOfImage);
     }
     else
     {
